@@ -23,7 +23,34 @@ class CRM_Teaminschrijving_Participant {
         $this->changeMainContactRole($participantId);
       }
     }
+  }
 
+  public function appendEmailOtherParticipants($commaSeparatedemailAddresses, $otherContactIds, $excludeId) {
+    $parsedContactIds = $this->parseContactIds($otherContactIds);
+    foreach ($parsedContactIds as $parsedContactId) {
+      if ($parsedContactId != $excludeId) {
+        $email = $this->getEmailAddress($parsedContactId);
+        $commaSeparatedemailAddresses = $this->appendEmailAddress($commaSeparatedemailAddresses, $email);
+      }
+    }
+
+    return $commaSeparatedemailAddresses;
+  }
+
+  private function appendEmailAddress($commaSeparatedemailAddresses, $newEmailAddress) {
+    if (empty($newEmailAddress)) {
+      return $commaSeparatedemailAddresses;
+    }
+
+    if (empty($commaSeparatedemailAddresses)) {
+      return $newEmailAddress;
+    }
+
+    return $commaSeparatedemailAddresses . ',' . $newEmailAddress;
+  }
+
+  private function getEmailAddress($contactId) {
+    return CRM_Core_DAO::singleValueQuery("select email from civicrm_email where contact_id = $contactId and is_primary = 1");
   }
 
   private function getContactIdFromParticipantId($participantId) {
@@ -70,7 +97,57 @@ class CRM_Teaminschrijving_Participant {
       'contact_id' => $otherContactId,
       'registered_by_id' => $mainContactParticipantId,
     ];
-    civicrm_api3('Participant', 'create', $params);
+    $result = civicrm_api3('Participant', 'create', $params);
+
+    $this->duplicateInvoicingDetails($mainContactParticipantId, $result['id']);
+  }
+
+  private function duplicateInvoicingDetails($fromParticipantId, $toParticipantId) {
+    $fromInvoicingDetails = $this->getInvoicingDetails($fromParticipantId);
+    if ($fromInvoicingDetails) {
+      $toInvoicingDetails = $this->getInvoicingDetails($toParticipantId);
+
+      if ($toInvoicingDetails) {
+        $this->updateInvoicingDetails($fromInvoicingDetails, $toInvoicingDetails);
+      }
+      else {
+        $this->insertInvoicingDetails($fromInvoicingDetails, $toParticipantId);
+      }
+    }
+  }
+
+  private function getInvoicingDetails($participantId) {
+    $sql = "select * from civicrm_value_facturatie_deelname where entity_id = $participantId";
+    $dao = CRM_Core_DAO::executeQuery($sql);
+    if ($dao->fetch()) {
+      return $dao;
+    }
+    else {
+      return FALSE;
+    }
+  }
+
+  private function insertInvoicingDetails($fromInvoicingDetails, $toParticipantId) {
+    $id = $fromInvoicingDetails->id;
+    $sql = "
+      insert into
+        civicrm_value_facturatie_deelname
+      (
+         entity_id, wie_is_de_betaler, betaler_voor_boekhouding, facturatiegegevens
+      )
+      select
+        $toParticipantId, wie_is_de_betaler, betaler_voor_boekhouding, facturatiegegevens
+      from
+        civicrm_value_facturatie_deelname
+      where
+        id = $id
+    ";
+    CRM_Core_DAO::executeQuery($sql);
+  }
+
+  private function updateInvoicingDetails($fromInvoicingDetails, $toInvoicingDetails) {
+    CRM_Core_DAO::executeQuery("delete from civicrm_value_facturatie_deelname where id = " . $toInvoicingDetails->id);
+    $this->insertInvoicingDetails($fromInvoicingDetails, $toInvoicingDetails->entity_id);
   }
 
   private function hasRegistration($eventId, $otherContactId) {

@@ -77,7 +77,7 @@ class CRM_Teaminschrijving_Team {
     // relationships:
     //  35 - is titularis van
     // 119 - is teambeheerder van (nieuw)
-    $relList = '39,119';
+    $relList = '39,41,119';
 
     $sql = "
       select

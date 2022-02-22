@@ -25,6 +25,13 @@ function teaminschrijving_civicrm_custom( $op, $groupID, $entityID, &$params ) {
   }
 }
 
+function teaminschrijving_civicrm_alterMailParams(&$params, $context) {
+  if ($context == 'singleEmail' && !empty($params['custom_339'])) {
+    $participant = new CRM_Teaminschrijving_Participant();
+    $params['cc'] = $participant->appendEmailOtherParticipants($params['cc'], $params['custom_339'], $params['contact_id']);
+  }
+}
+
 /**
  * Implements hook_civicrm_config().
  *
