@@ -10,7 +10,10 @@ function teaminschrijving_civicrm_alterContent(&$content, $context, $tplName, &$
     Civi::resources()->addScriptFile('be.kava.teaminschrijving', 'js/teaminschrijving.js', 200, 'html-header');
 
     $currentUser = CRM_Core_Session::getLoggedInContactID();
-    $team = CRM_Teaminschrijving_Team::get($currentUser);
+    $eventId = $object->_eventId;
+    $teamMemberId = CRM_Utils_Request::retrieveValue('team_member_id', 'Integer');
+
+    $team = CRM_Teaminschrijving_Team::get($currentUser, $eventId, $teamMemberId);
     if ($team) {
       $content = preg_replace('/APOTHEEKTEAM_PLACEHOLDER/', $team, $content, 1);
       $content = preg_replace('/APOTHEEKTEAM_PLACEHOLDER/', '', $content, 1);

@@ -1,31 +1,62 @@
 <?php
 
 class CRM_Teaminschrijving_Team {
-  public static function get($contactId) {
+  public static function get($contactId, $eventId, $teamMemberId) {
     $team = '';
 
     $dao = self::getOrganizations($contactId);
     while ($dao->fetch()) {
-      $team .= '<h3>' . $dao->organization_name . '</h3>';
-      $team .= self::addTeamMembers($dao->id);
+      $team .= '<optgroup label="Apotheek: ' . $dao->organization_name . '">';
+      $team .= self::addTeamMembers($dao->id, $eventId, $teamMemberId);
+      $team .= '</optgroup>';
     }
 
     if ($team) {
-      $team = '<div id="apotheekteam">' . $team . '</div>';
+      $script = 'this.options[this.selectedIndex].value && (window.location = this.options[this.selectedIndex].value);';
+      $team = '<div id="apotheekteam"><select onchange="' . $script . '">' . $team . '</select></div>';
     }
 
     return $team;
   }
 
-  private static function addTeamMembers($orgId) {
+  private static function addTeamMembers($orgId, $eventId, $teamMemberId) {
     $teamMembers = '';
 
-    $dao = self::getTeamMembers($orgId);
-    while ($dao->fetch()) {
-      $teamMembers .= '<input type="checkbox" id="teamlid' . $dao->id . '" value="' . $dao->id . '">';
-      $teamMembers .= '<label for="teamlid'. $dao->id . '">' . $dao->person_name . '</label><br>';
+    $contactDao = self::getTeamMembers($orgId);
+    while ($contactDao->fetch()) {
+      $participantDao = self::getEventRegistration($contactDao->id, $eventId);
+
+      if ($participantDao) {
+        $teamMembers .= self::addRegisteredTeamMember($contactDao, $participantDao);
+      }
+      else {
+        $teamMembers .= self::addUnregisteredTeamMember($contactDao, $eventId, $teamMemberId);
+      }
     }
+
     return $teamMembers;
+  }
+
+  private static function getEventRegistration($contactId, $eventId) {
+    $sql = "select * from civicrm_participant where contact_id = $contactId and event_id = $eventId";
+    $dao = CRM_Core_DAO::executeQuery($sql);
+    if ($dao->fetch()) {
+      return $dao;
+    }
+    else {
+      return FALSE;
+    }
+  }
+
+  private static function addRegisteredTeamMember($contactDao, $participantDao) {
+    return '<option disabled>' . $contactDao->person_name . ' (reeds ingeschreven op ' . $participantDao->register_date . ')</option>';
+  }
+
+  private static function addUnregisteredTeamMember($contactDao, $eventId, $teamMemberId) {
+    $selected = ($contactDao->id == $teamMemberId) ? 'selected' : '';
+
+    $url = CRM_Utils_System::url('civicrm/event/register', 'reset=1&cid=0&id=' . $eventId . '&team_member_id=' . $contactDao->id);
+    return '<option value="' . $url .'" ' . $selected . '>' . $contactDao->person_name . '</option>';
   }
 
   private static function getTeamMembers($orgId) {
